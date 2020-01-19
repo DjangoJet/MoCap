@@ -89,21 +89,7 @@ class Server:
                 self.sendMarkers(markers.findMarkesPosition(frame))
                 rawCapture.truncate(0)
 
-def listToString(s):  
-    
-    # initialize an empty string 
-    str1 = ""  
-    
-    # traverse in the string   
-    for ele in s:  
-        str1 += ele   
-    
-    # return string   
-    return str1 
-
 if __name__ == "__main__":
     server = Server()
     server.setupClient()
     server.startServe()
-    
-
