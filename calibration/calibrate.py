@@ -13,7 +13,7 @@ class StereoCalibration(object):
 
         # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
         self.objp = np.zeros((9*7, 3), np.float32)
-        self.objp[:, :2] = np.mgrid[0:9, 0:7].T.reshape(-1, 2)
+        self.objp[:, :2] = np.mgrid[0:9, 0:7].T.reshape(-1, 2)*20
 
         # Arrays to store object points and image points from all the images.
         self.objpoints = []  # 3d point in real world space
@@ -30,7 +30,7 @@ class StereoCalibration(object):
         images_right.sort()
 
         img_shape = ()
-        for i, fname in enumerate(images_right):
+        for i, _ in enumerate(images_right):
             img_l = cv2.imread(images_left[i])
             img_r = cv2.imread(images_right[i])
 
@@ -45,7 +45,7 @@ class StereoCalibration(object):
             self.objpoints.append(self.objp)
 
             if ret_l is True:
-                rt = cv2.cornerSubPix(gray_l, corners_l, (11, 11), (-1, -1), self.criteria)
+                _ = cv2.cornerSubPix(gray_l, corners_l, (11, 11), (-1, -1), self.criteria)
                 self.imgpoints_l.append(corners_l)
 
                 # Draw and display the corners
@@ -55,7 +55,7 @@ class StereoCalibration(object):
                 # plt.show()
 
             if ret_r is True:
-                rt = cv2.cornerSubPix(gray_r, corners_r, (11, 11), (-1, -1), self.criteria)
+                _ = cv2.cornerSubPix(gray_r, corners_r, (11, 11), (-1, -1), self.criteria)
                 self.imgpoints_r.append(corners_r)
 
                 # Draw and display the corners
@@ -68,8 +68,8 @@ class StereoCalibration(object):
         print(len(self.imgpoints_r))
 
         # print(type(img_shape))
-        rt, self.M1, self.d1, self.r1, self.t1 = cv2.calibrateCamera(self.objpoints, self.imgpoints_l, img_shape, None, None)
-        rt, self.M2, self.d2, self.r2, self.t2 = cv2.calibrateCamera(self.objpoints, self.imgpoints_r, img_shape, None, None)
+        _, self.M1, self.d1, self.r1, self.t1 = cv2.calibrateCamera(self.objpoints, self.imgpoints_l, img_shape, None, None)
+        _, self.M2, self.d2, self.r2, self.t2 = cv2.calibrateCamera(self.objpoints, self.imgpoints_r, img_shape, None, None)
 
         self.camera_model = self.stereo_calibrate(img_shape)
 
