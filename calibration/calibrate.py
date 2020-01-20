@@ -5,8 +5,8 @@ import argparse
 import matplotlib.pyplot as plt
 
 
-class StereoCalibration(object):
-    def __init__(self, filepath):
+class StereoCalibration():
+    def __init__(self):
         # termination criteria
         self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
         self.criteria_cal = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 1e-5)
@@ -20,16 +20,17 @@ class StereoCalibration(object):
         self.imgpoints_l = []  # 2d points in image plane.
         self.imgpoints_r = []  # 2d points in image plane.
 
-        self.cal_path = filepath
-        self.read_images(self.cal_path)
+        self.camerasCalibrate()
+        self.stereoCalibrate()
+        self.computeNewCameraMatrixs()
+        self.computeProjectionMatrixs()
 
-    def read_images(self, cal_path):
-        images_right = glob.glob(cal_path + 'RIGHT/*.jpg')
-        images_left = glob.glob(cal_path + 'LEFT/*.jpg')
+    def camerasCalibrate(self):
+        images_right = glob.glob('RIGHT/*.jpg')
+        images_left = glob.glob('LEFT/*.jpg')
         images_left.sort()
         images_right.sort()
 
-        img_shape = ()
         for i, _ in enumerate(images_right):
             img_l = cv2.imread(images_left[i])
             img_r = cv2.imread(images_right[i])
@@ -63,17 +64,13 @@ class StereoCalibration(object):
                 # plt.imshow(img_r)
                 # plt.title(images_right[i])
                 # plt.show()
-            img_shape = gray_l.shape[::-1]
-        print(len(self.imgpoints_l))
-        print(len(self.imgpoints_r))
+            self.img_shape = gray_l.shape[::-1]
 
         # print(type(img_shape))
-        _, self.M1, self.d1, self.r1, self.t1 = cv2.calibrateCamera(self.objpoints, self.imgpoints_l, img_shape, None, None)
-        _, self.M2, self.d2, self.r2, self.t2 = cv2.calibrateCamera(self.objpoints, self.imgpoints_r, img_shape, None, None)
+        _, self.M_L, self.d_L, _, _ = cv2.calibrateCamera(self.objpoints, self.imgpoints_l, self.img_shape, None, None)
+        _, self.M_R, self.d_R, _, _ = cv2.calibrateCamera(self.objpoints, self.imgpoints_r, self.img_shape, None, None)
 
-        self.camera_model = self.stereo_calibrate(img_shape)
-
-    def stereo_calibrate(self, dims):
+    def stereoCalibrate(self):
         flags = 0
         flags |= cv2.CALIB_FIX_INTRINSIC
         flags |= cv2.CALIB_USE_INTRINSIC_GUESS
@@ -81,26 +78,22 @@ class StereoCalibration(object):
         flags |= cv2.CALIB_ZERO_TANGENT_DIST
 
         stereocalib_criteria = (cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS, 100, 1e-5)
-        _ , M1, d1, M2, d2, R, T, E, F = cv2.stereoCalibrate(self.objpoints, self.imgpoints_l,self.imgpoints_r, self.M1, self.d1, self.M2, self.d2, dims, criteria=stereocalib_criteria, flags=flags)
+        _ , self.M_L, self.d_L, self.M_R, self.d_R, self.R, self.T, self.E, self.F = cv2.stereoCalibrate(self.objpoints, self.imgpoints_l,self.imgpoints_r, self.M_L, self.d_L, self.M_R, self.d_R, self.img_shape, criteria=stereocalib_criteria, flags=flags)
 
-        print('Intrinsic_mtx_1', M1)
-        print('dist_1', d1)
-        print('Intrinsic_mtx_2', M2)
-        print('dist_2', d2)
-        print('R', R)
-        print('T', T)
-        print('E', E)
-        print('F', F)
+    def computeNewCameraMatrixs(self):
+        w, h = self.img_shape
+        self.new_M_L, _ = cv2.getOptimalNewCameraMatrix(self.M_L, self.d_L,(w,h),1,(w,h))
+        self.new_M_R, _ = cv2.getOptimalNewCameraMatrix(self.M_R, self.d_R,(w,h),1,(w,h))
 
-        print('')
+    def computeProjectionMatrixs(self):
+        R_T = np.append(self.R, self.T, axis = 1)
+        self.P_L = np.dot(self.new_M_L, R_T)
+        self.P_R = np.dot(self.new_M_R, np.array([(1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0)]))
 
-        camera_model = dict([('M1', M1), ('M2', M2), ('dist1', d1), ('dist2', d2), ('rvecs1', self.r1), ('rvecs2', self.r2), ('R', R), ('T', T), ('E', E), ('F', F)])
-
-        cv2.destroyAllWindows()
-        return camera_model
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('filepath', help='String Filepath')
-    args = parser.parse_args()
-    cal_data = StereoCalibration(args.filepath)
+    stereoCalibration = StereoCalibration()
+    np.save('projectionMatrixLeft', stereoCalibration.P_L)
+    np.save('projectionMatrixRight', stereoCalibration.P_R)
+
+    # projection matrix

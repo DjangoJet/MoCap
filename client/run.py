@@ -38,7 +38,7 @@ class Markers:
         img = self.prepareImage(img)
         return self.takeCenters(img)    
 
-class Server:
+class Client:
     def __init__(self):
         self.takeServerParams()
     
@@ -49,47 +49,56 @@ class Server:
             self.port = setting["port"]
 
     def setupClient(self):
-        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            self.s.connect((self.host, self.port))
+            self.client.connect((self.host, self.port))
         except:
             print("Unable to connect")
             sys.exit()
         print("Connect to server")
 
-    def receiveMessage(self):
+    def receiveOk(self):
         message = ""
         while message != "ok":
-            message = self.s.recv(1024).decode()
+            message = self.client.recv(1024).decode()
             print(type(message))
             print(message)
             if message != "ok":
                 print("Message isn't ok")
 
     def sendMarkers(self, points):
-        self.s.sendall(pickle.dumps(points))
+        self.receiveOk()
+        self.client.sendall(pickle.dumps(points))
         print("Send markers")
 
-    def startServe(self):
+    def sendParameters(self):
+        self.receiveOk()
+        self.projectionCamera = np.load('projectionMatrixRight.npy')
+        self.client.sendall(pickle.dumps(self.projectionCamera))
+        print("Send projection Camera matrix")
+
+    def startClient(self):
         markers = Markers()
+        self.cameraSetup(markers)
 
-        camera = picamera.PiCamera()
-        camera.resolution = (markers.resolution[0], markers.resolution[1])
-        camera.color_effects = (128, 128)
-        camera.framerate = markers.framerate
-        rawCapture = PiRGBArray(camera)
-
-        time.sleep(2)
         print("Start detect markers")
         while True:
-            for capture in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
-                self.receiveMessage()
+            for capture in self.camera.capture_continuous(self.rawCapture, format="bgr", use_video_port=True):
                 frame = capture.array
                 print("Corect frame capture")
                 self.sendMarkers(markers.findMarkesPosition(frame))
-                rawCapture.truncate(0)
+                self.rawCapture.truncate(0)
+    
+    def cameraSetup(self, markers):
+        self.camera = picamera.PiCamera()
+        self.camera.resolution = (markers.resolution[0], markers.resolution[1])
+        self.camera.color_effects = (128, 128)
+        self.camera.framerate = markers.framerate
+        self.rawCapture = PiRGBArray(self.camera)
+        time.sleep(2)
 
 if __name__ == "__main__":
-    server = Server()
-    server.setupClient()
-    server.startServe()
+    client = Client()
+    client.setupClient()
+    client.sendParameters()
+    client.startClient()

@@ -3,45 +3,61 @@ import select
 import json
 import sys
 import pickle
+import cv2
+import numpy as np
 
-def connectCameras():
-    pass
+class Server:
+    def __init__(self, host, port, cameraNumber):
+        self.host = host
+        self.port = port
+        self.cameraNumber = cameraNumber
+        self.setupServer()
+    
+    def setupServer(self):
+        self.socketServer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socketServer.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socketServer.bind((self.host, self.port))
+        self.socketServer.listen()
+        print(f"Main server started on port {self.port}")
 
-def takeParametersFromCameras():
-    pass
+    def connectCameras(self):
+        self.connectionList = []
+        while len(self.connectionList) != self.cameraNumber:
+            sockfd, addr = self.socketServer.accept()
+            self.connectionList.append(sockfd)
+            print("Client (%s, %s) connected" % addr)
 
-def startCollectingPoints():
-    pass
+        print(f"{self.cameraNumber} cameras are connected")
+
+    def takeParametersFromCameras(self):
+        self.params = []
+        for sock in self.connectionList:
+            self.params.append(pickle.loads(sock.recv(4096)))
+
+    def sendOk(self):
+        for sock in self.connectionList:
+            sock.sendall(b'ok')
+        print("Send first ok")
+
+    def startCollectingPoints(self):
+        self.sendOk()
+        while True:
+            read_sockets, _, _ = select.select(self.connectionList,[],[])
+            if len(read_sockets) == self.cameraNumber:
+                for sock in self.connectionList:
+                    data = pickle.loads(sock.recv(4096))
+                    data = np.asanyarray(data)
+                    print(data)
+                self.sendOk()
+                # Do someting with markers from camers
 
 if __name__ == "__main__":
-
-    CONNECTION_LIST = []
-    RECV_BUFFER = 4096
-    PORT = 5000
-    CAMERA_NUMBER = 2
-
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_socket.bind(('192.168.43.60', PORT))
-    server_socket.listen()
-
-    print(f"Main server started on port {PORT}")
-
-    while len(CONNECTION_LIST) != CAMERA_NUMBER:
-        sockfd, addr = server_socket.accept()
-        CONNECTION_LIST.append(sockfd)
-        print("Client (%s, %s) connected" % addr)
-    
-    print("Two camera in CONNECTION_LIST")
-    print(CONNECTION_LIST)
-    for sock in CONNECTION_LIST:
-        sock.sendall(b'ok')
-    print("Send first ok")
-
-    while True:
-        read_sockets, write_sockets, error_sockets = select.select(CONNECTION_LIST,[],[])
-        if len(read_sockets) == CAMERA_NUMBER:
-            for sock in read_sockets:
-                data = pickle.loads(sock.recv(RECV_BUFFER))
-                sock.sendall(b'ok')
-            # Do someting with markers from camers
+    server = Server('192.168.43.60', 5000, 2)
+    server.connectCameras()
+    server.sendOk()
+    server.takeParametersFromCameras()
+    print(type(server.params[0]))
+    print(server.params[0])
+    print(type(server.params[1]))
+    print(server.params[1])
+    server.startCollectingPoints()
