@@ -42,20 +42,37 @@ class Points3D:
         self.leftFy = self.M_L[1,1]
 
     def undisortPoints(self, pointsLeft, pointsRight):
+        flagRightOne = False
+        flagLeftOne = False
+        if len(pointsRight) == 1:
+            pointsRight.append([0.0, 0.0])
+            flagRightOne = True
         pointsRight = np.asarray(pointsRight)
         pointsRight = np.expand_dims(pointsRight.T, axis=1)
-        pointsRight = cv2.undistortPoints(pointsRight, self.M_R, self.d_R)
+        pointsRight = cv2.undistortPoints(pointsRight.T, self.M_R, self.d_R)
+        # add undisort for one point
         pointsRight = pointsRight[:,0,:]
         pointsRight[:,0] = pointsRight[:,0]*self.rightFx + self.rightCx
         pointsRight[:,1] = pointsRight[:,1]*self.rightFy + self.rightCy
         
+        if len(pointsLeft) == 1:
+            pointsLeft.append([0.0, 0.0])
+            flagLeftOne = True
         pointsLeft = np.asarray(pointsLeft)
         pointsLeft = np.expand_dims(pointsLeft.T, axis=1)
-        pointsLeft = cv2.undistortPoints(pointsLeft, self.M_L, self.d_L)
+        pointsLeft = cv2.undistortPoints(pointsLeft.T, self.M_L, self.d_L)
+        # add undisort for one point
         pointsLeft = pointsLeft[:,0,:]
         pointsLeft[:,0] = pointsLeft[:,0]*self.leftFx + self.leftCx
         pointsLeft[:,1] = pointsLeft[:,1]*self.leftFy + self.leftCy
-        return pointsLeft.T, pointsRight.T
+        
+        if flagRightOne:
+            pointsRight = pointsRight[:,0]
+            pointsRight = pointsRight.reshape((2,1)).T
+        if flagLeftOne:
+            pointsLeft = pointsLeft[:,0]
+            pointsLeft = pointsLeft.reshape((2,1)).T
+        return pointsLeft, pointsRight
         
     
     def paringPoints(self, pointsLeft, pointsRight):
@@ -81,16 +98,20 @@ class Points3D:
                     paringPointsRight.append(tempBestPointRight)
                 minQuantity = 1
                 findPoint = False
-            paringPointsLeft = np.asarray(paringPointsLeft)
-            paringPointsLeft = paringPointsLeft[:,:2]
-            paringPointsRight = np.asarray(paringPointsRight)
-            paringPointsRight = paringPointsRight[:,:2]
+            
+            if len(paringPointsLeft):
+                paringPointsLeft = np.asarray(paringPointsLeft)
+                paringPointsLeft = paringPointsLeft[:,:2]
+            
+            if len(paringPointsRight):
+                paringPointsRight = np.asarray(paringPointsRight)
+                paringPointsRight = paringPointsRight[:,:2]
             return paringPointsLeft, paringPointsRight
         else:
-            for pointR in pointsRight:
+            for pointR in pointsRight[:,0,:]:
                 tempBestPointRight = np.zeros((3, 1))
                 tempBestPointLeft = np.zeros((3, 1))
-                for pointL in pointsLeft:
+                for pointL in pointsLeft[:,0,:]:
                     tempQuantity = self.takeParingQuantityIndicator(pointL, pointR)
                     if tempQuantity < minQuantity:
                         findPoint = True
@@ -102,17 +123,21 @@ class Points3D:
                     paringPointsRight.append(tempBestPointRight)
                 minQuantity = 1
                 findPoint = False
-            paringPointsLeft = np.asarray(paringPointsLeft)
-            paringPointsLeft = paringPointsLeft[:,:2]
-            paringPointsRight = np.asarray(paringPointsRight)
-            paringPointsRight = paringPointsRight[:,:2]
+
+            if len(paringPointsLeft):
+                paringPointsLeft = np.asarray(paringPointsLeft)
+                paringPointsLeft = paringPointsLeft[:,:2]
+            
+            if len(paringPointsRight):
+                paringPointsRight = np.asarray(paringPointsRight)
+                paringPointsRight = paringPointsRight[:,:2]
             return paringPointsLeft, paringPointsRight
         
     def takeParingQuantityIndicator(self, pointL, pointR):
         return math.fabs(pointR @ self.F @ pointL.T)
     
     def triangulatePoints(self, pointsLeft, pointsRight):
-        points3D = cv2.triangulatePoints(self.P_R, self.P_L, pointsRight, pointsLeft)
+        points3D = cv2.triangulatePoints(self.P_R, self.P_L, pointsRight.T, pointsLeft.T)
         points3D = cv2.convertPointsFromHomogeneous(points3D.T)
         return points3D
 
@@ -153,30 +178,35 @@ class Server:
         while True:
             read_sockets, _, _ = select.select(self.connectionList,[],[])
             if len(read_sockets) == self.cameraNumber:
-                pointsLeft = []
-                pointsRight = []
+                pointsLeftGlob = []
+                pointsRightGlob = []
                 for index, sock in enumerate(self.connectionList):
                     data = pickle.loads(sock.recv(4096))
                     if self.params[index] == 'left':
-                        pointsLeft = data
+                        pointsLeftGlob = data
                     elif self.params[index] == 'right':
-                        pointsRight = data
+                        pointsRightGlob = data
                 self.sendOk()
-                if pointsLeft and pointsRight:
-                    pointsLeft, pointsRight = points3DMaker.undisortPoints(pointsLeft, pointsRight)
-                    pointsLeft, pointsRight = points3DMaker.paringPoints(pointsLeft, pointsRight)
-                    if len(pointsLeft) == len(pointsRight):
-                        if len(pointsLeft) <= points3DMaker.markersNumber:
-                            points3D = points3DMaker.triangulatePoints(pointsLeft, pointsRight)
-                            print(points3D)
+                if len(pointsLeftGlob) > 0 and len(pointsRightGlob) > 0:
+                    pointsLeftGlob, pointsRightGlob = points3DMaker.undisortPoints(pointsLeftGlob, pointsRightGlob)
+                    pointsLeftGlob, pointsRightGlob = points3DMaker.paringPoints(pointsLeftGlob, pointsRightGlob)
+
+                    if len(pointsLeftGlob) > 0 and len(pointsRightGlob) > 0:
+                        if len(pointsLeftGlob) > 0 and len(pointsRightGlob) > 0:
+                            if len(pointsLeftGlob) <= points3DMaker.markersNumber:
+                                points3DGlob = points3DMaker.triangulatePoints(pointsLeftGlob, pointsRightGlob)
+                                print(points3DGlob)
+
+                        else:
+                            print('pointsLeft != pointsRight')
                     else:
-                        print('pointsLeft != pointsRight')
+                        print('Some paring points are empty')
                 else:
                     print('pointsLeft or pointsRight ale empty')
 
 
 def uploadCamerasParameters():
-    with open ('params', 'rb') as f:
+    with open ('/home/mike/Code/mocap/server/params', 'rb') as f:
         params = pickle.load(f)
         M_R = params["M_R"]
         M_L = params["M_L"]
