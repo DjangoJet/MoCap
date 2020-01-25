@@ -3,6 +3,7 @@ import cv2
 import glob
 import argparse
 import matplotlib.pyplot as plt
+import pickle
 
 
 class StereoCalibration():
@@ -13,7 +14,7 @@ class StereoCalibration():
 
         # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
         self.objp = np.zeros((9*7, 3), np.float32)
-        self.objp[:, :2] = np.mgrid[0:9, 0:7].T.reshape(-1, 2)*20
+        self.objp[:, :2] = np.mgrid[0:9, 0:7].T.reshape(-1, 2)
 
         # Arrays to store object points and image points from all the images.
         self.objpoints = []  # 3d point in real world space
@@ -79,6 +80,15 @@ class StereoCalibration():
 
         stereocalib_criteria = (cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS, 100, 1e-5)
         _ , self.M_L, self.d_L, self.M_R, self.d_R, self.R, self.T, self.E, self.F = cv2.stereoCalibrate(self.objpoints, self.imgpoints_l,self.imgpoints_r, self.M_L, self.d_L, self.M_R, self.d_R, self.img_shape, criteria=stereocalib_criteria, flags=flags)
+        self.R_L, self.R_R, self.P_L, self.P_R, self.Q, self.roi_L, self.roi_R = cv2.stereoRectify(
+                        self.M_L,
+                        self.d_L,
+                        self.M_R,
+                        self.d_R,
+                        self.img_shape,
+                        self.R,
+                        self.T)
+
 
     def computeNewCameraMatrixs(self):
         w, h = self.img_shape
@@ -90,10 +100,16 @@ class StereoCalibration():
         self.P_L = np.dot(self.new_M_L, R_T)
         self.P_R = np.dot(self.new_M_R, np.array([(1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0)]))
 
+    def saveToFile(self):
+        params = {"M_L": self.M_L, "d_L": self.d_L, "M_R": self.M_R, "d_R": self.d_R, "R": self.R, "T": self.T, "E": self.E, "F": self.F, "R_L": self.R_L, "R_R": self.R_R, "P_L": self.P_L, "P_R": self.P_R, "Q": self.Q, "roi_L": self.roi_L, "roi_R": self.roi_R}
+        with open('params', 'wb') as f:
+            pickle.dump(params, f)
+
+
+
 
 if __name__ == '__main__':
     stereoCalibration = StereoCalibration()
-    np.save('projectionMatrixLeft', stereoCalibration.P_L)
-    np.save('projectionMatrixRight', stereoCalibration.P_R)
-
+    stereoCalibration.saveToFile()
+    cv2.undistortPointsIter()
     # projection matrix

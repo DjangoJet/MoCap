@@ -31,12 +31,12 @@ class Markers:
         _, contours, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for c in contours:
             M = cv2.moments(c)
-            points.append([int(M['m10'] / M['m00']), int(M['m01'] / M['m00'])])
+            points.append([M['m10'] / M['m00'], M['m01'] / M['m00']])
         return points
 
     def findMarkesPosition(self, img):
         img = self.prepareImage(img)
-        return self.takeCenters(img)    
+        return self.takeCenters(img)
 
 class Client:
     def __init__(self):

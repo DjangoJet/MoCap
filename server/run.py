@@ -44,10 +44,10 @@ class Server:
         while True:
             read_sockets, _, _ = select.select(self.connectionList,[],[])
             if len(read_sockets) == self.cameraNumber:
+                points = []
                 for sock in self.connectionList:
                     data = pickle.loads(sock.recv(4096))
-                    data = np.asanyarray(data)
-                    print(data)
+                    points.append(data)
                 self.sendOk()
                 # Do someting with markers from camers
 
