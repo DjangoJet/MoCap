@@ -5,6 +5,116 @@ import sys
 import pickle
 import cv2
 import numpy as np
+import math
+class Points3D:
+    def __init__(self, M_L, d_L, M_R, d_R, P_L, P_R, F):
+        self.markersNumber = 4
+        self.F = F
+        self.M_L = M_L
+        self.d_L = d_L
+        self.M_R = M_R
+        self.d_R = d_R        
+        self.P_R = P_R
+        self.P_L = P_L
+        self.takePeaceParameters()
+
+    def takePeaceParameters(self):
+        self.leftK1 = self.d_L[0, 0]
+        self.leftK2 = self.d_L[0, 1]
+        self.leftP2 = self.d_L[0, 2]
+        self.leftP1 = self.d_L[0, 3]
+        self.leftK3 = self.d_L[0, 4]
+        
+        self.rightK1 = self.d_R[0, 0]
+        self.rightK2 = self.d_R[0, 1]
+        self.rightP1 = self.d_R[0, 2]
+        self.rightP2 = self.d_R[0, 3]
+        self.rightK3 = self.d_R[0, 4]
+        
+        self.rightCx = self.M_R[0,2]
+        self.rightCy = self.M_R[1,2]
+        self.rightFx = self.M_R[0,0]
+        self.rightFy = self.M_R[1,1]
+        
+        self.leftCx = self.M_L[0,2]
+        self.leftCy = self.M_L[1,2]
+        self.leftFx = self.M_L[0,0]
+        self.leftFy = self.M_L[1,1]
+
+    def undisortPoints(self, pointsLeft, pointsRight):
+        pointsRight = np.asarray(pointsRight)
+        pointsRight = np.expand_dims(pointsRight.T, axis=1)
+        pointsRight = cv2.undistortPoints(pointsRight, self.M_R, self.d_R)
+        pointsRight = pointsRight[:,0,:]
+        pointsRight[:,0] = pointsRight[:,0]*self.rightFx + self.rightCx
+        pointsRight[:,1] = pointsRight[:,1]*self.rightFy + self.rightCy
+        
+        pointsLeft = np.asarray(pointsLeft)
+        pointsLeft = np.expand_dims(pointsLeft.T, axis=1)
+        pointsLeft = cv2.undistortPoints(pointsLeft, self.M_L, self.d_L)
+        pointsLeft = pointsLeft[:,0,:]
+        pointsLeft[:,0] = pointsLeft[:,0]*self.leftFx + self.leftCx
+        pointsLeft[:,1] = pointsLeft[:,1]*self.leftFy + self.leftCy
+        return pointsLeft.T, pointsRight.T
+        
+    
+    def paringPoints(self, pointsLeft, pointsRight):
+        paringPointsLeft = []
+        paringPointsRight = []
+        minQuantity = 1
+        pointsLeft = cv2.convertPointsToHomogeneous(pointsLeft)
+        pointsRight = cv2.convertPointsToHomogeneous(pointsRight)
+        findPoint = False
+        if len(pointsLeft) >= len(pointsRight):          
+            for pointL in pointsLeft[:,0,:]:
+                tempBestPointRight = np.zeros((3, 1))
+                tempBestPointLeft = np.zeros((3, 1))
+                for pointR in pointsRight[:,0,:]:
+                    tempQuantity = self.takeParingQuantityIndicator(pointL, pointR)
+                    if tempQuantity < minQuantity:
+                        findPoint = True
+                        tempBestPointLeft = pointL
+                        tempBestPointRight = pointR
+                        minQuantity = tempQuantity
+                if findPoint:
+                    paringPointsLeft.append(tempBestPointLeft)
+                    paringPointsRight.append(tempBestPointRight)
+                minQuantity = 1
+                findPoint = False
+            paringPointsLeft = np.asarray(paringPointsLeft)
+            paringPointsLeft = paringPointsLeft[:,:2]
+            paringPointsRight = np.asarray(paringPointsRight)
+            paringPointsRight = paringPointsRight[:,:2]
+            return paringPointsLeft, paringPointsRight
+        else:
+            for pointR in pointsRight:
+                tempBestPointRight = np.zeros((3, 1))
+                tempBestPointLeft = np.zeros((3, 1))
+                for pointL in pointsLeft:
+                    tempQuantity = self.takeParingQuantityIndicator(pointL, pointR)
+                    if tempQuantity < minQuantity:
+                        findPoint = True
+                        tempBestPointLeft = pointL
+                        tempBestPointRight = pointR
+                        minQuantity = tempQuantity
+                if findPoint:
+                    paringPointsLeft.append(tempBestPointLeft)
+                    paringPointsRight.append(tempBestPointRight)
+                minQuantity = 1
+                findPoint = False
+            paringPointsLeft = np.asarray(paringPointsLeft)
+            paringPointsLeft = paringPointsLeft[:,:2]
+            paringPointsRight = np.asarray(paringPointsRight)
+            paringPointsRight = paringPointsRight[:,:2]
+            return paringPointsLeft, paringPointsRight
+        
+    def takeParingQuantityIndicator(self, pointL, pointR):
+        return math.fabs(pointR @ self.F @ pointL.T)
+    
+    def triangulatePoints(self, pointsLeft, pointsRight):
+        points3D = cv2.triangulatePoints(self.P_R, self.P_L, pointsRight, pointsLeft)
+        points3D = cv2.convertPointsFromHomogeneous(points3D.T)
+        return points3D
 
 class Server:
     def __init__(self, host, port, cameraNumber):
@@ -29,7 +139,7 @@ class Server:
 
         print(f"{self.cameraNumber} cameras are connected")
 
-    def takeParametersFromCameras(self):
+    def identifyCameras(self):
         self.params = []
         for sock in self.connectionList:
             self.params.append(pickle.loads(sock.recv(4096)))
@@ -37,27 +147,52 @@ class Server:
     def sendOk(self):
         for sock in self.connectionList:
             sock.sendall(b'ok')
-        print("Send first ok")
 
-    def startCollectingPoints(self):
+    def startCollectingPoints(self, points3DMaker):
         self.sendOk()
         while True:
             read_sockets, _, _ = select.select(self.connectionList,[],[])
             if len(read_sockets) == self.cameraNumber:
-                points = []
-                for sock in self.connectionList:
+                pointsLeft = []
+                pointsRight = []
+                for index, sock in enumerate(self.connectionList):
                     data = pickle.loads(sock.recv(4096))
-                    points.append(data)
+                    if self.params[index] == 'left':
+                        pointsLeft = data
+                    elif self.params[index] == 'right':
+                        pointsRight = data
                 self.sendOk()
-                # Do someting with markers from camers
+                if pointsLeft and pointsRight:
+                    pointsLeft, pointsRight = points3DMaker.undisortPoints(pointsLeft, pointsRight)
+                    pointsLeft, pointsRight = points3DMaker.paringPoints(pointsLeft, pointsRight)
+                    if len(pointsLeft) == len(pointsRight):
+                        if len(pointsLeft) <= points3DMaker.markersNumber:
+                            points3D = points3DMaker.triangulatePoints(pointsLeft, pointsRight)
+                            print(points3D)
+                    else:
+                        print('pointsLeft != pointsRight')
+                else:
+                    print('pointsLeft or pointsRight ale empty')
+
+
+def uploadCamerasParameters():
+    with open ('params', 'rb') as f:
+        params = pickle.load(f)
+        M_R = params["M_R"]
+        M_L = params["M_L"]
+        d_R = params["d_R"]
+        d_L = params["d_L"]
+        F = params["F"]
+        P_L = params["P_L"]
+        P_R = params["P_R"] 
+        points3DMaker = Points3D(M_L, d_L, M_R, d_R, P_L, P_R, F)
+        return points3DMaker
+
 
 if __name__ == "__main__":
+    points3DMaker = uploadCamerasParameters()
     server = Server('192.168.43.60', 5000, 2)
     server.connectCameras()
     server.sendOk()
-    server.takeParametersFromCameras()
-    print(type(server.params[0]))
-    print(server.params[0])
-    print(type(server.params[1]))
-    print(server.params[1])
-    server.startCollectingPoints()
+    server.identifyCameras()
+    server.startCollectingPoints(points3DMaker)

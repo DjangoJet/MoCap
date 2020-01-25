@@ -71,11 +71,11 @@ class Client:
         self.client.sendall(pickle.dumps(points))
         print("Send markers")
 
-    def sendParameters(self):
+    def sendName(self):
         self.receiveOk()
-        self.projectionCamera = np.load('projectionMatrixRight.npy')
-        self.client.sendall(pickle.dumps(self.projectionCamera))
-        print("Send projection Camera matrix")
+        cameraName = 'right'
+        self.client.sendall(pickle.dumps(cameraName))
+        print("Send camera name")
 
     def startClient(self):
         markers = Markers()
@@ -100,5 +100,5 @@ class Client:
 if __name__ == "__main__":
     client = Client()
     client.setupClient()
-    client.sendParameters()
+    client.sendName()
     client.startClient()
