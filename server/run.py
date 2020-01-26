@@ -194,8 +194,8 @@ class Server:
                     if len(pointsLeftGlob) > 0 and len(pointsRightGlob) > 0:
                         if len(pointsLeftGlob) > 0 and len(pointsRightGlob) > 0:
                             if len(pointsLeftGlob) <= points3DMaker.markersNumber:
-                                points3DGlob = points3DMaker.triangulatePoints(pointsLeftGlob, pointsRightGlob) # 3x3
-                                print(points3DGlob)
+                                points3DGlob = points3DMaker.triangulatePoints(pointsLeftGlob, pointsRightGlob) # 3x3 - dla jedengo punktu 1x1x3 - dla dwóch 2x1x3
+                                print3D(points3DGlob[:,0,0],points3DGlob[:,0,1],points3DGlob[:,0,2])
 
                         else:
                             print('pointsLeft != pointsRight')
@@ -218,8 +218,27 @@ def uploadCamerasParameters():
         points3DMaker = Points3D(M_L, d_L, M_R, d_R, P_L, P_R, F)
         return points3DMaker
 
+from mpl_toolkits import mplot3d
+
+import numpy as np
+import matplotlib.pyplot as plt
+import time
+
+def print3D(x, y, z):
+    ax.clear()
+    ax.scatter3D(x, y, z, '*')
+    ax.set_xlim3d(-100,100)
+    ax.set_ylim3d(-100,100)
+    ax.set_zlim3d(0,-400)
+    plt.draw()
+    plt.pause(0.001)
 
 if __name__ == "__main__":
+    plt.ion()
+    fig = plt.figure()
+    ax = plt.axes(projection="3d")
+
+
     points3DMaker = uploadCamerasParameters()
     server = Server('192.168.43.60', 5000, 2)
     server.connectCameras()
