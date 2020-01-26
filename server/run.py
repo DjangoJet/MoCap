@@ -45,18 +45,18 @@ class Points3D:
         flagRightOne = False
         flagLeftOne = False
         if len(pointsRight) == 1:
-            pointsRight.append([0.0, 0.0])
+            pointsRight.append(pointsRight[0])
             flagRightOne = True
-        pointsRight = np.asarray(pointsRight)
-        pointsRight = np.expand_dims(pointsRight.T, axis=1)
-        pointsRight = cv2.undistortPoints(pointsRight.T, self.M_R, self.d_R)
+        pointsRight = np.asarray(pointsRight) # 3x2
+        pointsRight = np.expand_dims(pointsRight.T, axis=1) # 2x1x3
+        pointsRight = cv2.undistortPoints(pointsRight.T, self.M_R, self.d_R) # 3x1x2 TU JEST BŁĄD DLA JEDNEGO ELEMENTU
         # add undisort for one point
-        pointsRight = pointsRight[:,0,:]
-        pointsRight[:,0] = pointsRight[:,0]*self.rightFx + self.rightCx
-        pointsRight[:,1] = pointsRight[:,1]*self.rightFy + self.rightCy
+        pointsRight = pointsRight[:,0,:] # 3x2
+        pointsRight[:,0] = pointsRight[:,0]*self.rightFx + self.rightCx # 3x2
+        pointsRight[:,1] = pointsRight[:,1]*self.rightFy + self.rightCy # 3x2
         
         if len(pointsLeft) == 1:
-            pointsLeft.append([0.0, 0.0])
+            pointsLeft.append(pointsLeft[0])
             flagLeftOne = True
         pointsLeft = np.asarray(pointsLeft)
         pointsLeft = np.expand_dims(pointsLeft.T, axis=1)
@@ -67,12 +67,12 @@ class Points3D:
         pointsLeft[:,1] = pointsLeft[:,1]*self.leftFy + self.leftCy
         
         if flagRightOne:
-            pointsRight = pointsRight[:,0]
+            pointsRight = pointsRight[0,:]
             pointsRight = pointsRight.reshape((2,1)).T
         if flagLeftOne:
-            pointsLeft = pointsLeft[:,0]
+            pointsLeft = pointsLeft[0,:]
             pointsLeft = pointsLeft.reshape((2,1)).T
-        return pointsLeft, pointsRight
+        return pointsLeft, pointsRight # 3x2, 3x2
         
     
     def paringPoints(self, pointsLeft, pointsRight):
@@ -99,11 +99,11 @@ class Points3D:
                 minQuantity = 1
                 findPoint = False
             
-            if len(paringPointsLeft):
+            if len(paringPointsLeft) > 0:
                 paringPointsLeft = np.asarray(paringPointsLeft)
                 paringPointsLeft = paringPointsLeft[:,:2]
             
-            if len(paringPointsRight):
+            if len(paringPointsRight) > 0:
                 paringPointsRight = np.asarray(paringPointsRight)
                 paringPointsRight = paringPointsRight[:,:2]
             return paringPointsLeft, paringPointsRight
@@ -124,17 +124,17 @@ class Points3D:
                 minQuantity = 1
                 findPoint = False
 
-            if len(paringPointsLeft):
+            if len(paringPointsLeft) > 0:
                 paringPointsLeft = np.asarray(paringPointsLeft)
                 paringPointsLeft = paringPointsLeft[:,:2]
             
-            if len(paringPointsRight):
+            if len(paringPointsRight) > 0:
                 paringPointsRight = np.asarray(paringPointsRight)
                 paringPointsRight = paringPointsRight[:,:2]
             return paringPointsLeft, paringPointsRight
         
     def takeParingQuantityIndicator(self, pointL, pointR):
-        return math.fabs(pointR @ self.F @ pointL.T)
+        return math.fabs(pointR.reshape((3,1)).T @ self.F @ pointL.reshape((3,1)))
     
     def triangulatePoints(self, pointsLeft, pointsRight):
         points3D = cv2.triangulatePoints(self.P_R, self.P_L, pointsRight.T, pointsLeft.T)
@@ -188,13 +188,13 @@ class Server:
                         pointsRightGlob = data
                 self.sendOk()
                 if len(pointsLeftGlob) > 0 and len(pointsRightGlob) > 0:
-                    pointsLeftGlob, pointsRightGlob = points3DMaker.undisortPoints(pointsLeftGlob, pointsRightGlob)
-                    pointsLeftGlob, pointsRightGlob = points3DMaker.paringPoints(pointsLeftGlob, pointsRightGlob)
+                    pointsLeftGlob, pointsRightGlob = points3DMaker.undisortPoints(pointsLeftGlob, pointsRightGlob) # 3x2
+                    pointsLeftGlob, pointsRightGlob = points3DMaker.paringPoints(pointsLeftGlob, pointsRightGlob) # 3x2
 
                     if len(pointsLeftGlob) > 0 and len(pointsRightGlob) > 0:
                         if len(pointsLeftGlob) > 0 and len(pointsRightGlob) > 0:
                             if len(pointsLeftGlob) <= points3DMaker.markersNumber:
-                                points3DGlob = points3DMaker.triangulatePoints(pointsLeftGlob, pointsRightGlob)
+                                points3DGlob = points3DMaker.triangulatePoints(pointsLeftGlob, pointsRightGlob) # 3x3
                                 print(points3DGlob)
 
                         else:
