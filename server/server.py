@@ -12,7 +12,7 @@ flagSendPoints = False
 class Server(socketserver.BaseRequestHandler):
 
     def setup(self):
-        data = self.request.recv(1024).decode()
+        data = pickle.loads(self.request.recv(1024))
         if data == 'cameraLeft':
             self.nodeType = 'cameraLeft'
         elif data == 'cameraRight':

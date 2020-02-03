@@ -58,13 +58,12 @@ class Camera:
         print("Connect to server")
 
     def receiveOk(self):
-        message = ""
-        while message != "ok":
-            message = self.client.recv(1024).decode()
-            print(type(message))
+        message = self.client.recv(1024).decode()
+        if message == 'ok':
             print(message)
-            if message != "ok":
-                print("Message isn't ok")
+        else:
+            print("Message is: " + message)
+            sys.exit()
 
     def sendMarkers(self, points):
         self.receiveOk()
@@ -72,8 +71,7 @@ class Camera:
         print("Send markers")
 
     def sendName(self):
-        self.receiveOk()
-        cameraName = 'right'
+        cameraName = 'cameraRight'
         self.client.sendall(pickle.dumps(cameraName))
         print("Send camera name")
 
