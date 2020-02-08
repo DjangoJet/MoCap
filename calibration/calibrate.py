@@ -13,8 +13,8 @@ class StereoCalibration():
         self.criteria_cal = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 1e-5)
 
         # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
-        self.objp = np.zeros((9*7, 3), np.float32)
-        self.objp[:, :2] = np.mgrid[0:9, 0:7].T.reshape(-1, 2)*2
+        self.objp = np.zeros((8*6, 3), np.float32)
+        self.objp[:, :2] = np.mgrid[0:8, 0:6].T.reshape(-1, 2)*3
 
         # Arrays to store object points and image points from all the images.
         self.objpoints = []  # 3d point in real world space
@@ -40,8 +40,8 @@ class StereoCalibration():
             gray_r = cv2.cvtColor(img_r, cv2.COLOR_BGR2GRAY)
 
             # Find the chess board corners
-            ret_l, corners_l = cv2.findChessboardCorners(gray_l, (9, 7), None)
-            ret_r, corners_r = cv2.findChessboardCorners(gray_r, (9, 7), None)
+            ret_l, corners_l = cv2.findChessboardCorners(gray_l, (8, 6), None)
+            ret_r, corners_r = cv2.findChessboardCorners(gray_r, (8, 6), None)
 
             # If found, add object points, image points (after refining them)
             self.objpoints.append(self.objp)
@@ -51,7 +51,7 @@ class StereoCalibration():
                 self.imgpoints_l.append(corners_l)
 
                 # Draw and display the corners
-                ret_l = cv2.drawChessboardCorners(img_l, (9, 7), corners_l, ret_l)
+                ret_l = cv2.drawChessboardCorners(img_l, (8, 6), corners_l, ret_l)
                 # plt.imshow(img_l)
                 # plt.title(images_left[i])
                 # plt.show()
@@ -61,7 +61,7 @@ class StereoCalibration():
                 self.imgpoints_r.append(corners_r)
 
                 # Draw and display the corners
-                ret_r = cv2.drawChessboardCorners(img_r, (9, 7), corners_r, ret_r)
+                ret_r = cv2.drawChessboardCorners(img_r, (8, 6), corners_r, ret_r)
                 # plt.imshow(img_r)
                 # plt.title(images_right[i])
                 # plt.show()

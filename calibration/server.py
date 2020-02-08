@@ -12,13 +12,13 @@ server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 server_socket.bind((HOST, PORT))
 server_socket.listen()
 
-print(f'Wait for connect {CAMERA_NUMBER} cameras')
+print('Wait for connect %s cameras' % CAMERA_NUMBER)
 while len(CONNECTION_LIST) != CAMERA_NUMBER:
     sockfd, addr = server_socket.accept()
     CONNECTION_LIST.append(sockfd)
     print("Client (%s, %s) connected" % addr)
 
-print(f'All cameras connected')
+print('All cameras connected')
 while True:
     message = input('New command: ')
     if message == 'exit':

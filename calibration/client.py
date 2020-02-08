@@ -9,7 +9,7 @@ socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 socket.connect((host, port))
 
 camera = picamera.PiCamera()
-camera.resolution = (1296, 972)
+camera.resolution = (1296, 972) # (640, 480)
 camera.start_preview()
 
 imgCounter = 0
